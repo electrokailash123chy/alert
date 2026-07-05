@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vehicle Tracker Dashboard</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Arial, sans-serif; }
+  body {
+    background: linear-gradient(135deg,#0f172a,#1e293b);
+    min-height:100vh;
+    color:#e2e8f0;
+    padding:20px;
+  }
+  .container { max-width:600px; margin:0 auto; }
+  h1 {
+    text-align:center;
+    color:#38bdf8;
+    margin-bottom:20px;
+    font-size:24px;
+    letter-spacing:1px;
+  }
+  .status-banner {
+    padding:16px;
+    border-radius:12px;
+    text-align:center;
+    font-weight:bold;
+    font-size:18px;
+    margin-bottom:20px;
+    transition: all 0.3s ease;
+  }
+  .status-safe { background:#16a34a; color:#fff; box-shadow:0 0 20px rgba(22,163,74,0.5); }
+  .status-warning { background:#eab308; color:#1a1a1a; box-shadow:0 0 20px rgba(234,179,8,0.5); }
+  .status-danger { background:#dc2626; color:#fff; animation:pulse 1s infinite; box-shadow:0 0 25px rgba(220,38,38,0.7); }
+  .status-offline { background:#475569; color:#cbd5e1; }
+
+  @keyframes pulse {
+    0%,100% { opacity:1; }
+    50% { opacity:0.6; }
+  }
+
+  .card {
+    background:#1e293b;
+    border-radius:14px;
+    padding:18px;
+    margin-bottom:14px;
+    border:1px solid #334155;
+  }
+  .card-title {
+    font-size:12px;
+    color:#94a3b8;
+    text-transform:uppercase;
+    letter-spacing:1px;
+    margin-bottom:6px;
+  }
+  .card-value {
+    font-size:22px;
+    font-weight:bold;
+  }
+  .grid {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+  }
+  .val-blue { color:#38bdf8; }
+  .val-green { color:#4ade80; }
+  .val-yellow { color:#facc15; }
+  .val-red { color:#f87171; }
+
+  .map-btn {
+    display:block;
+    width:100%;
+    padding:16px;
+    background:#2563eb;
+    color:#fff;
+    border:none;
+    border-radius:12px;
+    font-size:16px;
+    font-weight:bold;
+    cursor:pointer;
+    text-align:center;
+    text-decoration:none;
+    box-shadow:0 4px 15px rgba(37,99,235,0.4);
+    transition:transform 0.15s ease, background 0.2s ease;
+    margin-top:10px;
+  }
+  .map-btn:hover { background:#1d4ed8; transform:translateY(-2px); }
+  .map-btn:active { transform:translateY(0); }
+
+  .last-updated {
+    text-align:center;
+    color:#64748b;
+    font-size:12px;
+    margin-top:16px;
+  }
+
+  .rssi-bar-bg {
+    background:#334155;
+    border-radius:8px;
+    height:10px;
+    overflow:hidden;
+    margin-top:8px;
+  }
+  .rssi-bar-fill {
+    height:100%;
+    background:linear-gradient(90deg,#4ade80,#38bdf8);
+    transition:width 0.4s ease;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🛰️ Vehicle Tracker Dashboard</h1>
+
+  <div id="statusBanner" class="status-banner status-offline">
+    Waiting for data...
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-title">Latitude</div>
+      <div class="card-value val-blue" id="latVal">--</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Longitude</div>
+      <div class="card-value val-blue" id="lonVal">--</div>
+    </div>
+    <div class="card">
+      <div class="card-title">GPS Fix</div>
+      <div class="card-value" id="fixVal">--</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Impact (g)</div>
+      <div class="card-value" id="accVal">--</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Gyro (deg/s)</div>
+      <div class="card-value" id="gyroVal">--</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Signal (RSSI)</div>
+      <div class="card-value" id="rssiVal">--</div>
+      <div class="rssi-bar-bg"><div class="rssi-bar-fill" id="rssiBar" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <a id="mapBtn" class="map-btn" href="#" target="_blank" rel="noopener">
+    📍 Open Google Map (Live Location)
+  </a>
+
+  <div class="last-updated" id="lastUpdated">Never updated</div>
+</div>
+
+<script>
+  // ---------- CONFIG: your Firebase Realtime Database ----------
+  const FIREBASE_HOST = "https://smart-alert-system-for-vehicle-default-rtdb.asia-southeast1.firebasedatabase.app/";
+  const FIREBASE_AUTH = "AQRsweBWhFVuKs6Sz4uwecyNWmHDGXIQA1ijF3QZ";
+  const POLL_INTERVAL_MS = 2000;
+  let lastLat = null, lastLon = null;
+
+  async function fetchData() {
+    try {
+      const url = `${FIREBASE_HOST}/tracker.json?auth=${FIREBASE_AUTH}`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (!data) {
+        setOffline();
+        return;
+      }
+
+      updateUI(data);
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setOffline();
+    }
+  }
+
+  function setOffline() {
+    const banner = document.getElementById('statusBanner');
+    banner.className = 'status-banner status-offline';
+    banner.textContent = '⚠ No Data / Offline';
+  }
+
+  function updateUI(data) {
+    const lat = data.latitude ?? 0;
+    const lon = data.longitude ?? 0;
+    const fix = data.gpsFix ?? 0;
+    const totalAcc = data.totalAcc ?? 0;
+    const gyroMag = data.gyroMag ?? 0;
+    const accident = data.accident ?? 0;
+    const rssi = data.rssi ?? -120;
+
+    document.getElementById('latVal').textContent = lat.toFixed(6);
+    document.getElementById('lonVal').textContent = lon.toFixed(6);
+    document.getElementById('fixVal').textContent = fix ? "FIX" : "NO FIX";
+    document.getElementById('fixVal').className = 'card-value ' + (fix ? 'val-green' : 'val-red');
+
+    document.getElementById('accVal').textContent = totalAcc.toFixed(2) + ' g';
+    document.getElementById('gyroVal').textContent = gyroMag.toFixed(1) + ' °/s';
+
+    document.getElementById('rssiVal').textContent = rssi + ' dBm';
+    // Map RSSI (-120 weak -> -40 strong) to a 0-100% bar
+    const rssiPercent = Math.max(0, Math.min(100, ((rssi + 120) / 80) * 100));
+    document.getElementById('rssiBar').style.width = rssiPercent + '%';
+
+    // ---------- Status Banner Logic ----------
+    const banner = document.getElementById('statusBanner');
+    if (accident == 1) {
+      banner.className = 'status-banner status-danger';
+      banner.textContent = '🚨 ACCIDENT DETECTED!';
+    } else if (totalAcc > 2.5 || gyroMag > 150) {
+      banner.className = 'status-banner status-warning';
+      banner.textContent = '⚠ Abnormal Motion Detected';
+    } else if (fix) {
+      banner.className = 'status-banner status-safe';
+      banner.textContent = '✅ All Normal';
+    } else {
+      banner.className = 'status-banner status-offline';
+      banner.textContent = '⚠ Waiting for GPS Fix';
+    }
+
+    // ---------- Google Maps Button ----------
+    if (lat !== 0 && lon !== 0) {
+      const mapUrl = `https://www.google.com/maps?q=${lat},${lon}`;
+      document.getElementById('mapBtn').href = mapUrl;
+    }
+
+    // ---------- Last Updated ----------
+    const now = new Date();
+    document.getElementById('lastUpdated').textContent =
+      'Last updated: ' + now.toLocaleTimeString();
+
+    lastLat = lat;
+    lastLon = lon;
+  }
+
+  fetchData();
+  setInterval(fetchData, POLL_INTERVAL_MS);
+</script>
+
+</body>
+</html>
