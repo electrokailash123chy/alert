@@ -26,7 +26,7 @@
     text-align:center;
     font-weight:bold;
     font-size:18px;
-    margin-bottom:20px;
+    margin-bottom:10px;
     transition: all 0.3s ease;
   }
   .status-safe { background:#16a34a; color:#fff; box-shadow:0 0 20px rgba(22,163,74,0.5); }
@@ -38,6 +38,16 @@
     0%,100% { opacity:1; }
     50% { opacity:0.6; }
   }
+
+  .source-tag {
+    text-align:center;
+    font-size:13px;
+    color:#94a3b8;
+    margin-bottom:20px;
+    letter-spacing:0.5px;
+  }
+  .source-sensor { color:#f87171; font-weight:bold; }
+  .source-manual { color:#facc15; font-weight:bold; }
 
   .card {
     background:#1e293b;
@@ -117,6 +127,8 @@
     Waiting for data...
   </div>
 
+  <div id="sourceTag" class="source-tag"></div>
+
   <div class="grid">
     <div class="card">
       <div class="card-title">Latitude</div>
@@ -154,10 +166,9 @@
 
 <script>
   // ---------- CONFIG: your Firebase Realtime Database ----------
-  const FIREBASE_HOST = "https://smart-alert-system-for-vehicle-default-rtdb.asia-southeast1.firebasedatabase.app/";
+  const FIREBASE_HOST = "https://smart-alert-system-for-vehicle-default-rtdb.asia-southeast1.firebasedatabase.app";
   const FIREBASE_AUTH = "AQRsweBWhFVuKs6Sz4uwecyNWmHDGXIQA1ijF3QZ";
   const POLL_INTERVAL_MS = 2000;
-  let lastLat = null, lastLon = null;
 
   async function fetchData() {
     try {
@@ -181,6 +192,7 @@
     const banner = document.getElementById('statusBanner');
     banner.className = 'status-banner status-offline';
     banner.textContent = '⚠ No Data / Offline';
+    document.getElementById('sourceTag').textContent = '';
   }
 
   function updateUI(data) {
@@ -189,7 +201,8 @@
     const fix = data.gpsFix ?? 0;
     const totalAcc = data.totalAcc ?? 0;
     const gyroMag = data.gyroMag ?? 0;
-    const accident = data.accident ?? 0;
+    const alert = data.alert ?? 0;
+    const source = data.source ?? 0;   // 0=none, 1=sensor, 2=manual
     const rssi = data.rssi ?? -120;
 
     document.getElementById('latVal').textContent = lat.toFixed(6);
@@ -201,24 +214,34 @@
     document.getElementById('gyroVal').textContent = gyroMag.toFixed(1) + ' °/s';
 
     document.getElementById('rssiVal').textContent = rssi + ' dBm';
-    // Map RSSI (-120 weak -> -40 strong) to a 0-100% bar
     const rssiPercent = Math.max(0, Math.min(100, ((rssi + 120) / 80) * 100));
     document.getElementById('rssiBar').style.width = rssiPercent + '%';
 
     // ---------- Status Banner Logic ----------
     const banner = document.getElementById('statusBanner');
-    if (accident == 1) {
+    const sourceTag = document.getElementById('sourceTag');
+
+    if (alert == 1) {
       banner.className = 'status-banner status-danger';
-      banner.textContent = '🚨 ACCIDENT DETECTED!';
+      if (source == 2) {
+        banner.textContent = '🚨 MANUAL ALERT TRIGGERED!';
+        sourceTag.innerHTML = 'Triggered by: <span class="source-manual">MANUAL BUTTON</span>';
+      } else {
+        banner.textContent = '🚨 ACCIDENT DETECTED!';
+        sourceTag.innerHTML = 'Triggered by: <span class="source-sensor">SENSOR (IMPACT/ROLLOVER)</span>';
+      }
     } else if (totalAcc > 2.5 || gyroMag > 150) {
       banner.className = 'status-banner status-warning';
       banner.textContent = '⚠ Abnormal Motion Detected';
+      sourceTag.textContent = '';
     } else if (fix) {
       banner.className = 'status-banner status-safe';
       banner.textContent = '✅ All Normal';
+      sourceTag.textContent = '';
     } else {
       banner.className = 'status-banner status-offline';
       banner.textContent = '⚠ Waiting for GPS Fix';
+      sourceTag.textContent = '';
     }
 
     // ---------- Google Maps Button ----------
@@ -231,9 +254,6 @@
     const now = new Date();
     document.getElementById('lastUpdated').textContent =
       'Last updated: ' + now.toLocaleTimeString();
-
-    lastLat = lat;
-    lastLon = lon;
   }
 
   fetchData();
