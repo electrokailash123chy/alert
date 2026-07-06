@@ -168,7 +168,12 @@
   </div>
 
   <div class="card">
-    <div class="card-title">GPS Date &amp; Time (Local, 12-hour)</div>
+    <div class="card-title">Current Time (Live)</div>
+    <div class="card-value val-green" id="liveClockVal">--</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">GPS Date &amp; Time (from vehicle unit)</div>
     <div class="card-value val-blue" id="gpsDateTimeVal">--</div>
   </div>
 
@@ -239,7 +244,9 @@
     if (gpsDate && gpsTime) {
       document.getElementById('gpsDateTimeVal').textContent = gpsDate + '  ' + gpsTime;
     } else {
-      document.getElementById('gpsDateTimeVal').textContent = 'Time N/A';
+      // Position fix can arrive before the GPS module has decoded a full
+      // time subframe, so this is expected briefly after power-on.
+      document.getElementById('gpsDateTimeVal').textContent = 'Waiting for GPS time sync...';
     }
 
     // ---------- Status Banner Logic ----------
@@ -285,6 +292,43 @@
     document.getElementById('lastUpdated').textContent =
       'Last updated: ' + now.toLocaleTimeString();
   }
+
+  // ---------- Live real-time clock (ticks every second, browser-side) ----------
+  // Set this to your local UTC offset in minutes if the viewing device's
+  // clock/timezone might differ from the vehicle's location.
+  // Nepal Standard Time = UTC+5:45 = 345 minutes. Set to null to just use
+  // the viewer's own device/browser timezone instead.
+  const CLOCK_UTC_OFFSET_MIN = 345;
+
+  function updateLiveClock() {
+    const now = new Date();
+
+    let displayDate;
+    if (CLOCK_UTC_OFFSET_MIN !== null) {
+      const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+      displayDate = new Date(utcMs + CLOCK_UTC_OFFSET_MIN * 60000);
+    } else {
+      displayDate = now;
+    }
+
+    let hours = displayDate.getHours();
+    const minutes = String(displayDate.getMinutes()).padStart(2, '0');
+    const seconds = String(displayDate.getSeconds()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    if (hours === 0) hours = 12;
+    const hoursStr = String(hours).padStart(2, '0');
+
+    const day = String(displayDate.getDate()).padStart(2, '0');
+    const month = String(displayDate.getMonth() + 1).padStart(2, '0');
+    const year = displayDate.getFullYear();
+
+    document.getElementById('liveClockVal').textContent =
+      `${day}/${month}/${year}  ${hoursStr}:${minutes}:${seconds} ${ampm}`;
+  }
+
+  updateLiveClock();
+  setInterval(updateLiveClock, 1000);
 
   fetchData();
   setInterval(fetchData, POLL_INTERVAL_MS);
