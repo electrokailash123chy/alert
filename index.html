@@ -172,11 +172,6 @@
     <div class="card-value val-green" id="liveClockVal">--</div>
   </div>
 
-  <div class="card">
-    <div class="card-title">GPS Date &amp; Time (from vehicle unit)</div>
-    <div class="card-value val-blue" id="gpsDateTimeVal">--</div>
-  </div>
-
   <a id="mapBtn" class="map-btn" href="#" target="_blank" rel="noopener">
     📍 Open Google Map (Live Location)
   </a>
@@ -240,14 +235,9 @@
     const rssiPercent = Math.max(0, Math.min(100, ((rssi + 120) / 80) * 100));
     document.getElementById('rssiBar').style.width = rssiPercent + '%';
 
-    // ---------- GPS Date/Time (12-hour, as reported by the vehicle unit) ----------
-    if (gpsDate && gpsTime) {
-      document.getElementById('gpsDateTimeVal').textContent = gpsDate + '  ' + gpsTime;
-    } else {
-      // Position fix can arrive before the GPS module has decoded a full
-      // time subframe, so this is expected briefly after power-on.
-      document.getElementById('gpsDateTimeVal').textContent = 'Waiting for GPS time sync...';
-    }
+    // gpsDate/gpsTime are still read from Firebase above but no longer
+    // displayed as a separate card (removed since it wasn't syncing).
+
 
     // ---------- Status Banner Logic ----------
     const banner = document.getElementById('statusBanner');
