@@ -43,11 +43,20 @@
     text-align:center;
     font-size:13px;
     color:#94a3b8;
-    margin-bottom:20px;
+    margin-bottom:10px;
     letter-spacing:0.5px;
   }
   .source-sensor { color:#f87171; font-weight:bold; }
   .source-manual { color:#facc15; font-weight:bold; }
+
+  .alert-time-tag {
+    text-align:center;
+    font-size:13px;
+    color:#fca5a5;
+    margin-bottom:20px;
+    letter-spacing:0.3px;
+    font-weight:600;
+  }
 
   .card {
     background:#1e293b;
@@ -128,6 +137,7 @@
   </div>
 
   <div id="sourceTag" class="source-tag"></div>
+  <div id="alertTimeTag" class="alert-time-tag"></div>
 
   <div class="grid">
     <div class="card">
@@ -155,6 +165,11 @@
       <div class="card-value" id="rssiVal">--</div>
       <div class="rssi-bar-bg"><div class="rssi-bar-fill" id="rssiBar" style="width:0%"></div></div>
     </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">GPS Date &amp; Time (Local, 12-hour)</div>
+    <div class="card-value val-blue" id="gpsDateTimeVal">--</div>
   </div>
 
   <a id="mapBtn" class="map-btn" href="#" target="_blank" rel="noopener">
@@ -193,6 +208,7 @@
     banner.className = 'status-banner status-offline';
     banner.textContent = '⚠ No Data / Offline';
     document.getElementById('sourceTag').textContent = '';
+    document.getElementById('alertTimeTag').textContent = '';
   }
 
   function updateUI(data) {
@@ -204,6 +220,8 @@
     const alert = data.alert ?? 0;
     const source = data.source ?? 0;   // 0=none, 1=sensor, 2=manual
     const rssi = data.rssi ?? -120;
+    const gpsDate = data.date ?? '';
+    const gpsTime = data.time ?? '';
 
     document.getElementById('latVal').textContent = lat.toFixed(6);
     document.getElementById('lonVal').textContent = lon.toFixed(6);
@@ -217,9 +235,17 @@
     const rssiPercent = Math.max(0, Math.min(100, ((rssi + 120) / 80) * 100));
     document.getElementById('rssiBar').style.width = rssiPercent + '%';
 
+    // ---------- GPS Date/Time (12-hour, as reported by the vehicle unit) ----------
+    if (gpsDate && gpsTime) {
+      document.getElementById('gpsDateTimeVal').textContent = gpsDate + '  ' + gpsTime;
+    } else {
+      document.getElementById('gpsDateTimeVal').textContent = 'Time N/A';
+    }
+
     // ---------- Status Banner Logic ----------
     const banner = document.getElementById('statusBanner');
     const sourceTag = document.getElementById('sourceTag');
+    const alertTimeTag = document.getElementById('alertTimeTag');
 
     if (alert == 1) {
       banner.className = 'status-banner status-danger';
@@ -230,18 +256,22 @@
         banner.textContent = '🚨 ACCIDENT DETECTED!';
         sourceTag.innerHTML = 'Triggered by: <span class="source-sensor">SENSOR (IMPACT/ROLLOVER)</span>';
       }
+      alertTimeTag.textContent = (gpsDate && gpsTime) ? ('Alert time: ' + gpsDate + ' ' + gpsTime) : '';
     } else if (totalAcc > 2.5 || gyroMag > 150) {
       banner.className = 'status-banner status-warning';
       banner.textContent = '⚠ Abnormal Motion Detected';
       sourceTag.textContent = '';
+      alertTimeTag.textContent = '';
     } else if (fix) {
       banner.className = 'status-banner status-safe';
       banner.textContent = '✅ All Normal';
       sourceTag.textContent = '';
+      alertTimeTag.textContent = '';
     } else {
       banner.className = 'status-banner status-offline';
       banner.textContent = '⚠ Waiting for GPS Fix';
       sourceTag.textContent = '';
+      alertTimeTag.textContent = '';
     }
 
     // ---------- Google Maps Button ----------
